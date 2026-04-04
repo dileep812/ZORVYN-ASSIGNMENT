@@ -1,0 +1,493 @@
+function success(data) {
+  return { success: true, data };
+}
+
+function failure(issues) {
+  return { success: false, issues };
+}
+
+function isValidDateString(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const d = new Date(Date.UTC(year, month - 1, day));
+
+  return d.getUTCFullYear() === year
+    && d.getUTCMonth() + 1 === month
+    && d.getUTCDate() === day;
+}
+
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+function isRole(value) {
+  return value === 'viewer' || value === 'analyst' || value === 'admin';
+}
+
+function isRecordType(value) {
+  return value === 'income' || value === 'expense';
+}
+
+function isValidUsername(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_.-]{3,30}$/.test(value);
+}
+
+function isValidPassword(value) {
+  return typeof value === 'string' && value.length >= 8 && value.length <= 72;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function addUnknownFieldIssues(input, allowedFields, issues) {
+  for (const key of Object.keys(input)) {
+    if (!allowedFields.includes(key)) {
+      issues.push({ field: key, message: 'Unknown field is not allowed' });
+    }
+  }
+}
+
+export function userCreateSchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['name', 'email', 'username', 'password', 'role', 'isActive'], issues);
+
+  const name = normalizeString(input?.name);
+  if (typeof name !== 'string' || name.length < 2 || name.length > 120) {
+    issues.push({ field: 'name', message: 'Name must be between 2 and 120 characters' });
+  } else {
+    data.name = name;
+  }
+
+  const email = normalizeString(input?.email);
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (typeof email !== 'string' || !emailPattern.test(email)) {
+    issues.push({ field: 'email', message: 'Invalid email format' });
+  } else {
+    data.email = email.toLowerCase();
+  }
+
+  const username = normalizeString(input?.username);
+  if (!isValidUsername(username)) {
+    issues.push({ field: 'username', message: 'Username must be 3-30 chars and contain only letters, numbers, _, -, or .' });
+  } else {
+    data.username = username.toLowerCase();
+  }
+
+  if (!isValidPassword(input?.password)) {
+    issues.push({ field: 'password', message: 'Password must be between 8 and 72 characters' });
+  } else {
+    data.password = input.password;
+  }
+
+  if (!isRole(input?.role)) {
+    issues.push({ field: 'role', message: 'Role must be viewer, analyst, or admin' });
+  } else {
+    data.role = input.role;
+  }
+
+  if (input?.isActive !== undefined && typeof input.isActive !== 'boolean') {
+    issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
+  } else {
+    data.isActive = input?.isActive ?? true;
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function userUpdateSchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['name', 'username', 'password', 'role', 'isActive'], issues);
+
+  if (input?.name !== undefined) {
+    const name = normalizeString(input.name);
+    if (typeof name !== 'string' || name.length < 2 || name.length > 120) {
+      issues.push({ field: 'name', message: 'Name must be between 2 and 120 characters' });
+    } else {
+      data.name = name;
+    }
+  }
+
+  if (input?.role !== undefined) {
+    if (!isRole(input.role)) {
+      issues.push({ field: 'role', message: 'Role must be viewer, analyst, or admin' });
+    } else {
+      data.role = input.role;
+    }
+  }
+
+  if (input?.username !== undefined) {
+    const username = normalizeString(input.username);
+    if (!isValidUsername(username)) {
+      issues.push({ field: 'username', message: 'Username must be 3-30 chars and contain only letters, numbers, _, -, or .' });
+    } else {
+      data.username = username.toLowerCase();
+    }
+  }
+
+  if (input?.password !== undefined) {
+    if (!isValidPassword(input.password)) {
+      issues.push({ field: 'password', message: 'Password must be between 8 and 72 characters' });
+    } else {
+      data.password = input.password;
+    }
+  }
+
+  if (input?.isActive !== undefined) {
+    if (typeof input.isActive !== 'boolean') {
+      issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
+    } else {
+      data.isActive = input.isActive;
+    }
+  }
+
+  if (Object.keys(input).length === 0) {
+    issues.push({ field: 'body', message: 'At least one field required' });
+  }
+
+  if (Object.keys(data).length === 0 && Object.keys(input).length > 0) {
+    issues.push({ field: 'body', message: 'At least one valid updatable field required' });
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function recordCreateSchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['amount', 'type', 'category', 'date', 'notes'], issues);
+
+  if (typeof input?.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
+    issues.push({ field: 'amount', message: 'Amount must be greater than 0' });
+  } else {
+    data.amount = input.amount;
+  }
+
+  if (!isRecordType(input?.type)) {
+    issues.push({ field: 'type', message: 'Type must be income or expense' });
+  } else {
+    data.type = input.type;
+  }
+
+  const category = normalizeString(input?.category);
+  if (typeof category !== 'string' || category.length < 1 || category.length > 100) {
+    issues.push({ field: 'category', message: 'Category must be between 1 and 100 characters' });
+  } else {
+    data.category = category;
+  }
+
+  if (!isValidDateString(input?.date)) {
+    issues.push({ field: 'date', message: 'Invalid date format (YYYY-MM-DD)' });
+  } else {
+    data.date = input.date;
+  }
+
+  if (input?.notes !== undefined) {
+    const notes = normalizeString(input.notes);
+    if (typeof notes !== 'string' || notes.length > 500) {
+      issues.push({ field: 'notes', message: 'Notes must be at most 500 characters' });
+    } else {
+      data.notes = notes;
+    }
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function recordUpdateSchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['amount', 'type', 'category', 'date', 'notes', 'version'], issues);
+
+  if (input?.amount !== undefined) {
+    if (typeof input.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
+      issues.push({ field: 'amount', message: 'Amount must be greater than 0' });
+    } else {
+      data.amount = input.amount;
+    }
+  }
+
+  if (input?.type !== undefined) {
+    if (!isRecordType(input.type)) {
+      issues.push({ field: 'type', message: 'Type must be income or expense' });
+    } else {
+      data.type = input.type;
+    }
+  }
+
+  if (input?.category !== undefined) {
+    const category = normalizeString(input.category);
+    if (typeof category !== 'string' || category.length < 1 || category.length > 100) {
+      issues.push({ field: 'category', message: 'Category must be between 1 and 100 characters' });
+    } else {
+      data.category = category;
+    }
+  }
+
+  if (input?.date !== undefined) {
+    if (!isValidDateString(input.date)) {
+      issues.push({ field: 'date', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.date = input.date;
+    }
+  }
+
+  if (input?.notes !== undefined) {
+    if (input.notes !== null) {
+      const notes = normalizeString(input.notes);
+      if (typeof notes !== 'string' || notes.length > 500) {
+        issues.push({ field: 'notes', message: 'Notes must be null or at most 500 characters' });
+      } else {
+        data.notes = notes;
+      }
+    } else {
+      data.notes = null;
+    }
+  }
+
+  if (typeof input?.version !== 'number' || !Number.isInteger(input.version) || input.version <= 0) {
+    issues.push({ field: 'version', message: 'Version must be a positive integer' });
+  } else {
+    data.version = input.version;
+  }
+
+  const hasPatchField = ['amount', 'type', 'category', 'date', 'notes'].some((k) => input?.[k] !== undefined);
+  if (!hasPatchField) {
+    issues.push({ field: 'body', message: 'At least one field plus version required' });
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function recordListSchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'query', message: 'Query parameters must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['type', 'category', 'startDate', 'endDate', 'page', 'limit'], issues);
+
+  if (input?.type !== undefined) {
+    if (!isRecordType(input.type)) {
+      issues.push({ field: 'type', message: 'Type must be income or expense' });
+    } else {
+      data.type = input.type;
+    }
+  }
+
+  if (input?.category !== undefined) {
+    const category = normalizeString(input.category);
+    if (typeof category !== 'string' || category.length < 1 || category.length > 100) {
+      issues.push({ field: 'category', message: 'Category must be between 1 and 100 characters' });
+    } else {
+      data.category = category;
+    }
+  }
+
+  if (input?.startDate !== undefined) {
+    if (!isValidDateString(input.startDate)) {
+      issues.push({ field: 'startDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.startDate = input.startDate;
+    }
+  }
+
+  if (input?.endDate !== undefined) {
+    if (!isValidDateString(input.endDate)) {
+      issues.push({ field: 'endDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.endDate = input.endDate;
+    }
+  }
+
+  if (data.startDate && data.endDate && data.startDate > data.endDate) {
+    issues.push({ field: 'startDate', message: 'startDate cannot be after endDate' });
+  }
+
+  const pageRaw = input?.page ?? 1;
+  const page = Number(pageRaw);
+  if (!Number.isInteger(page) || page < 1) {
+    issues.push({ field: 'page', message: 'Page must be an integer greater than or equal to 1' });
+  } else {
+    data.page = page;
+  }
+
+  const limitRaw = input?.limit ?? 20;
+  const limit = Number(limitRaw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    issues.push({ field: 'limit', message: 'Limit must be an integer between 1 and 100' });
+  } else {
+    data.limit = limit;
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function dashboardQuerySchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'query', message: 'Query parameters must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['startDate', 'endDate'], issues);
+
+  if (input?.startDate !== undefined) {
+    if (!isValidDateString(input.startDate)) {
+      issues.push({ field: 'startDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.startDate = input.startDate;
+    }
+  }
+
+  if (input?.endDate !== undefined) {
+    if (!isValidDateString(input.endDate)) {
+      issues.push({ field: 'endDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.endDate = input.endDate;
+    }
+  }
+
+  if (data.startDate && data.endDate && data.startDate > data.endDate) {
+    issues.push({ field: 'startDate', message: 'startDate cannot be after endDate' });
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function dashboardInsightsQuerySchema(input) {
+  const issues = [];
+  const data = {};
+
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'query', message: 'Query parameters must be an object' }]);
+  }
+
+  addUnknownFieldIssues(input, ['startDate', 'endDate', 'interval'], issues);
+
+  if (input?.startDate !== undefined) {
+    if (!isValidDateString(input.startDate)) {
+      issues.push({ field: 'startDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.startDate = input.startDate;
+    }
+  }
+
+  if (input?.endDate !== undefined) {
+    if (!isValidDateString(input.endDate)) {
+      issues.push({ field: 'endDate', message: 'Invalid date format (YYYY-MM-DD)' });
+    } else {
+      data.endDate = input.endDate;
+    }
+  }
+
+  if (data.startDate && data.endDate && data.startDate > data.endDate) {
+    issues.push({ field: 'startDate', message: 'startDate cannot be after endDate' });
+  }
+
+  const interval = input?.interval ?? 'week';
+  if (interval !== 'week' && interval !== 'month') {
+    issues.push({ field: 'interval', message: 'Interval must be week or month' });
+  } else {
+    data.interval = interval;
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function loginSchema(input) {
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  const issues = [];
+  const data = {};
+  addUnknownFieldIssues(input, ['username', 'password'], issues);
+
+  const username = normalizeString(input?.username);
+  if (!isValidUsername(username)) {
+    issues.push({ field: 'username', message: 'Username is required and must be valid' });
+  } else {
+    data.username = username.toLowerCase();
+  }
+
+  if (!isValidPassword(input?.password)) {
+    issues.push({ field: 'password', message: 'Password is required and must be between 8 and 72 characters' });
+  } else {
+    data.password = input.password;
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function changePasswordSchema(input) {
+  if (!isPlainObject(input)) {
+    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+  }
+
+  const issues = [];
+  const data = {};
+  addUnknownFieldIssues(input, ['currentPassword', 'newPassword', 'confirmPassword'], issues);
+
+  if (!isValidPassword(input?.currentPassword)) {
+    issues.push({ field: 'currentPassword', message: 'Current password is required and must be between 8 and 72 characters' });
+  } else {
+    data.currentPassword = input.currentPassword;
+  }
+
+  if (!isValidPassword(input?.newPassword)) {
+    issues.push({ field: 'newPassword', message: 'New password must be between 8 and 72 characters' });
+  } else {
+    data.newPassword = input.newPassword;
+  }
+
+  if (!isValidPassword(input?.confirmPassword)) {
+    issues.push({ field: 'confirmPassword', message: 'Confirm password must be between 8 and 72 characters' });
+  } else {
+    data.confirmPassword = input.confirmPassword;
+  }
+
+  if (data.newPassword && data.confirmPassword && data.newPassword !== data.confirmPassword) {
+    issues.push({ field: 'confirmPassword', message: 'Confirm password must match new password' });
+  }
+
+  if (data.currentPassword && data.newPassword && data.currentPassword === data.newPassword) {
+    issues.push({ field: 'newPassword', message: 'New password must be different from current password' });
+  }
+
+  return issues.length ? failure(issues) : success(data);
+}
