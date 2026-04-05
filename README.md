@@ -124,12 +124,6 @@ Token expires in 1 hour. Verification occurs on every request.
 
 - **[Setup Guide](docs/setup.md)** — Detailed installation and configuration
 - **[API Reference](docs/api-reference.md)** — Complete endpoint documentation with examples
-- **[Authentication](docs/authentication.md)** — JWT and token management details
-- **[Data Model](docs/data-model.md)** — Database schema and indexes
-- **[Validation & Errors](docs/validation-errors.md)** — Validation rules and error codes
-- **[Architecture](docs/architecture.md)** — Code organization and design patterns
-- **[Assumptions & Tradeoffs](docs/assumptions-tradeoffs.md)** — Design decisions explained
-- **[Overview](docs/overview.md)** — Technology stack summary
 
 ## Error Handling
 
@@ -194,7 +188,6 @@ Default password: `ChangeMe123!`
 | Username | Role | Email |
 |----------|------|-------|
 | admin1 | admin | admin1@finance.local |
-| admin2 | admin | admin2@finance.local |
 | analyst1 | analyst | analyst1@finance.local |
 | analyst2 | analyst | analyst2@finance.local |
 | viewer1 | viewer | viewer1@finance.local |

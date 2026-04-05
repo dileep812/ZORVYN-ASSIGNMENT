@@ -6,6 +6,8 @@ Protected routes require:
 
 `Authorization: Bearer <token>`
 
+or a valid HTTP-only auth cookie set by login.
+
 ## Public Endpoints
 
 ### Health
@@ -39,9 +41,7 @@ Response:
 ```json
 {
   "data": {
-    "token": "<jwt>",
-    "tokenType": "Bearer",
-    "expiresIn": "1h",
+    "authenticated": true,
     "user": {
       "id": 1,
       "name": "Admin One",
@@ -54,11 +54,12 @@ Response:
 }
 ```
 
+Note: JWT is set in an HTTP-only cookie (`access_token` by default). It is not returned in the JSON body.
+
 Possible errors:
 
 - `400` invalid body
 - `401` invalid credentials
-- `403` inactive account
 
 ## Protected Endpoints
 

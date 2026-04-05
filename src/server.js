@@ -15,11 +15,6 @@ import dashboardRouter from './routes/dashboard.route.js';
 
 const app = express();
 
-app.disable('x-powered-by');
-if (config.trustProxy) {
-  app.set('trust proxy', config.trustProxy);
-}
-
 // Security and logging middleware
 app.use(helmet());
 app.use(morgan(config.isProduction ? 'combined' : 'dev'));

@@ -244,6 +244,3 @@ openssl rand -base64 32
 ## Next Steps
 
 - Read [API Reference](api-reference.md) for endpoint documentation
-- Check [Authentication](authentication.md) for token management
-- Review [Data Model](data-model.md) for schema details
-- See [Assumptions & Tradeoffs](assumptions-tradeoffs.md) for design decisions
