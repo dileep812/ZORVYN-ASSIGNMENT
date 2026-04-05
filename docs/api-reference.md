@@ -265,7 +265,20 @@ Possible errors:
 
 #### List records
 
-`GET /api/records?type=expense&startDate=2026-01-01&endDate=2026-12-31&page=1&limit=20`
+`GET /api/records?type=expense&category=food&startDate=2026-01-01&endDate=2026-12-31&page=1&limit=20`
+
+Access: **analyst** and **admin** only.
+
+Supported filters:
+
+- `type` - `income` or `expense`
+- `category` - Category name
+- `startDate` - Start of date range (`YYYY-MM-DD`)
+- `endDate` - End of date range (`YYYY-MM-DD`)
+- `page` - Page number for pagination
+- `limit` - Page size for pagination
+
+You can combine any subset of filters. If `startDate` and `endDate` are both provided, they must be in chronological order.
 
 Response:
 

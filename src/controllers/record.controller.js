@@ -1,9 +1,16 @@
 import pool from '../db/connection.db.js';
 import { createError } from '../utils/error.utils.js';
+import { validateRecordId, validateDateRange, validatePositiveNumber } from '../utils/validation.utils.js';
+import { executeUpdate, createNewRecord } from '../utils/db.queries.js';
 
 export async function listRecords(req, res, next) {
   try {
     const { type, category, startDate, endDate, page, limit } = req.validatedQuery || {};
+
+    // Validate date range if both provided
+    if (startDate && endDate) {
+      validateDateRange(startDate, endDate);
+    }
 
     const where = ['is_deleted = FALSE'];
     const values = [];
@@ -23,10 +30,6 @@ export async function listRecords(req, res, next) {
     if (endDate) {
       values.push(endDate);
       where.push(`record_date <= $${values.length}`);
-    }
-
-    if (startDate && endDate && startDate > endDate) {
-      throw createError('startDate cannot be after endDate', 400);
     }
 
     const offset = (page - 1) * limit;
@@ -60,13 +63,20 @@ export async function listRecords(req, res, next) {
 export async function createRecord(req, res, next) {
   try {
     const { amount, type, category, date, notes } = req.body;
-    const { rows } = await pool.query(
-      `INSERT INTO financial_records (amount, type, category, record_date, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, amount, type, category, record_date, notes, created_by, created_at, updated_at`,
-      [amount, type, category, date, notes ?? '', req.user.id]
-    );
-    res.status(201).json({ data: rows[0] });
+    
+    // Validate amount is positive
+    validatePositiveNumber(amount, 'amount');
+
+    const result = await createNewRecord({
+      amount,
+      type,
+      category,
+      record_date: date,
+      notes: notes ?? '',
+      created_by: req.user.id
+    });
+    
+    res.status(201).json({ data: result });
   } catch (error) {
     next(error);
   }
@@ -75,54 +85,40 @@ export async function createRecord(req, res, next) {
 export async function updateRecord(req, res, next) {
   try {
     const recordId = Number(req.params.id);
-    if (!Number.isInteger(recordId) || recordId <= 0) {
-      throw createError('Invalid record ID', 400);
-    }
+    validateRecordId(recordId);
 
     const { amount, type, category, date, notes } = req.body;
 
-    const fields = [];
-    const values = [];
-    let paramIdx = 1;
-
+    const updateFields = {};
     if (amount !== undefined) {
-      fields.push(`amount = $${paramIdx++}`);
-      values.push(amount);
+      validatePositiveNumber(amount, 'amount');
+      updateFields.amount = amount;
     }
-    if (type !== undefined) {
-      fields.push(`type = $${paramIdx++}`);
-      values.push(type);
-    }
-    if (category !== undefined) {
-      fields.push(`category = $${paramIdx++}`);
-      values.push(category);
-    }
-    if (date !== undefined) {
-      fields.push(`record_date = $${paramIdx++}`);
-      values.push(date);
-    }
-    if (notes !== undefined) {
-      fields.push(`notes = $${paramIdx++}`);
-      values.push(notes);
-    }
+    if (type !== undefined) updateFields.type = type;
+    if (category !== undefined) updateFields.category = category;
+    if (date !== undefined) updateFields.record_date = date;
+    if (notes !== undefined) updateFields.notes = notes;
 
-    fields.push(`updated_at = NOW()`);
-
-    values.push(recordId);
-
-    const { rows } = await pool.query(
+    // Update will soft-delete check using WHERE clause
+    // Need to first verify record exists and is not deleted
+    const result = await pool.query(
       `UPDATE financial_records
-       SET ${fields.join(', ')}
-       WHERE id = $${paramIdx} AND is_deleted = FALSE
+       SET amount = COALESCE($1, amount),
+           type = COALESCE($2, type),
+           category = COALESCE($3, category),
+           record_date = COALESCE($4, record_date),
+           notes = COALESCE($5, notes),
+           updated_at = NOW()
+       WHERE id = $6 AND is_deleted = FALSE
        RETURNING id, amount, type, category, record_date, notes, created_by, created_at, updated_at`,
-      values
+      [updateFields.amount, updateFields.type, updateFields.category, updateFields.record_date, updateFields.notes, recordId]
     );
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       throw createError('Record not found', 404);
     }
 
-    res.json({ data: rows[0] });
+    res.json({ data: result.rows[0] });
   } catch (error) {
     next(error);
   }
@@ -131,9 +127,7 @@ export async function updateRecord(req, res, next) {
 export async function deleteRecord(req, res, next) {
   try {
     const recordId = Number(req.params.id);
-    if (!Number.isInteger(recordId) || recordId <= 0) {
-      throw createError('Invalid record ID', 400);
-    }
+    validateRecordId(recordId);
 
     const { rows } = await pool.query(
       `UPDATE financial_records

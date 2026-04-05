@@ -1,8 +1,8 @@
-// Auth controller: verifies credentials and issues JWT access tokens.
-import pool from '../db/connection.db.js';
 import config from '../config.js';
 import { createAccessToken, hashPassword, verifyPassword } from '../security/auth.security.js';
 import { createError } from '../utils/error.utils.js';
+import { getUserByUsername, checkUsernameUnique, getUserById } from '../utils/user.queries.js';
+import { executeUpdate } from '../utils/db.queries.js';
 
 function getAuthCookieOptions() {
   const cookieOptions = {
@@ -23,29 +23,17 @@ export async function login(req, res, next) {
   try {
     const { username, password } = req.body;
 
-    const { rows } = await pool.query(
-      `SELECT id, name, email, username, role, is_active, password_hash
-       FROM users
-       WHERE username = $1`,
-      [username]
-    );
-
-    if (!rows.length) {
+    const user = await getUserByUsername(username);
+    if (!user) {
       throw createError('Invalid username or password', 401);
     }
 
-    const user = rows[0];
     const passwordOk = await verifyPassword(password, user.password_hash);
     if (!passwordOk) {
       throw createError('Invalid username or password', 401);
     }
 
-    if (!user.is_active) {
-      throw createError('User account is inactive', 403);
-    }
-
     const token = createAccessToken(user);
-
     res.cookie(config.jwtCookieName, token, getAuthCookieOptions());
 
     res.json({
@@ -78,92 +66,68 @@ export async function logout(req, res) {
 export async function updateOwnProfile(req, res, next) {
   try {
     const { name, username, newPassword, oldPassword, isActive } = req.body;
-    const updates = {};
-    const updateFields = [];
-    const values = [];
-    let paramCount = 1;
+    const currentUser = await getUserById(req.user.id, 'id, name, username, is_active, password_hash');
 
-    const { rows: currentUserRows } = await pool.query(
-      'SELECT id, name, username, is_active, password_hash FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    if (!currentUserRows.length) {
+    if (!currentUser) {
       throw createError('Authenticated user not found', 401);
     }
 
-    const currentUser = currentUserRows[0];
+    const updateFields = {};
 
     // Validate and prepare name update
     if (name !== undefined) {
-      updates.name = name;
-      updateFields.push(`name = $${paramCount}`);
-      values.push(name);
-      paramCount++;
+      updateFields.name = name;
     }
 
     // Validate and prepare username update with uniqueness check
     if (username !== undefined) {
-      const { rows: usernameCheckRows } = await pool.query(
-        'SELECT id FROM users WHERE username = $1 AND id != $2',
-        [username, req.user.id]
-      );
-      if (usernameCheckRows.length) {
+      const isUnique = await checkUsernameUnique(username, req.user.id);
+      if (!isUnique) {
         throw createError('Username already taken', 409);
       }
-      updates.username = username;
-      updateFields.push(`username = $${paramCount}`);
-      values.push(username);
-      paramCount++;
+      updateFields.username = username;
     }
 
     // Validate and prepare password update with current password verification
     if (newPassword !== undefined) {
+      if (!oldPassword) {
+        throw createError('Current password is required to change password', 400);
+      }
       const currentPasswordOk = await verifyPassword(oldPassword, currentUser.password_hash);
       if (!currentPasswordOk) {
         throw createError('Current password is incorrect', 401);
       }
       const passwordHash = await hashPassword(newPassword);
-      updates.password_hash = passwordHash;
-      updateFields.push(`password_hash = $${paramCount}`);
-      values.push(passwordHash);
-      paramCount++;
+      updateFields.password_hash = passwordHash;
     }
 
     // Validate isActive change
     if (isActive !== undefined) {
-      // Check if user is trying to reactivate (set to true) while currently inactive
+      // Reactivation (set to true) is admin-only operation
       if (isActive === true && currentUser.is_active === false) {
         throw createError('User account reactivation can only be done by an admin', 403);
       }
-      updates.is_active = isActive;
-      updateFields.push(`is_active = $${paramCount}`);
-      values.push(isActive);
-      paramCount++;
+      // Admin cannot deactivate their own account
+      if (isActive === false && req.user.role === 'admin') {
+        throw createError('Admin cannot deactivate their own account', 403);
+      }
+      // Viewers and analysts can deactivate themselves
+      updateFields.is_active = isActive;
     }
 
     // If no updates provided
-    if (updateFields.length === 0) {
+    if (Object.keys(updateFields).length === 0) {
       res.json({ message: 'No profile updates provided' });
       return;
     }
 
-    // Execute update
-    updateFields.push(`updated_at = NOW()`);
-    values.push(req.user.id);
+    updateFields.updated_at = new Date().toISOString();
+    const updatedUser = await executeUpdate(updateFields, req.user.id, 'users');
 
-    await pool.query(
-      `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramCount}`,
-      values
-    );
+    if (!updatedUser) {
+      throw createError('Failed to update profile', 500);
+    }
 
-    // Fetch and return updated user
-    const { rows: updatedUserRows } = await pool.query(
-      'SELECT id, name, email, username, role, is_active FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    const updatedUser = updatedUserRows[0];
     res.json({
       message: 'Profile updated successfully',
       data: {

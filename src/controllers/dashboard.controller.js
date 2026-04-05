@@ -1,12 +1,14 @@
 import pool from '../db/connection.db.js';
 import { createError } from '../utils/error.utils.js';
+import { validateDateRange } from '../utils/validation.utils.js';
 
 export async function getDashboard(req, res, next) {
   try {
     const { startDate, endDate } = req.validatedQuery || {};
 
-    if (startDate && endDate && startDate > endDate) {
-      throw createError('startDate cannot be after endDate', 400);
+    // Validate date range
+    if (startDate && endDate) {
+      validateDateRange(startDate, endDate);
     }
 
     const where = ['is_deleted = FALSE'];
@@ -80,8 +82,9 @@ export async function getDashboardInsights(req, res, next) {
   try {
     const { startDate, endDate, interval } = req.validatedQuery || {};
 
-    if (startDate && endDate && startDate > endDate) {
-      throw createError('startDate cannot be after endDate', 400);
+    // Validate date range
+    if (startDate && endDate) {
+      validateDateRange(startDate, endDate);
     }
 
     const where = ['is_deleted = FALSE'];

@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.use(isToken);
 
-// List all financial records (analyst and admin can read)
+// List financial records with filtering by date, category, and type (analyst and admin only)
 router.get('/', requireRole('analyst', 'admin'), validateQuery(recordListSchema), listRecords);
 
 // Create financial record (admin only)

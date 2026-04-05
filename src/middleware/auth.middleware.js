@@ -1,11 +1,13 @@
 // Authentication middleware: validates Bearer JWT and loads active user context.
-import pool from '../db/connection.db.js';
 import config from '../config.js';
 import { verifyAccessToken } from '../security/auth.security.js';
 import { createError } from '../utils/error.utils.js';
+import { getUserById } from '../utils/user.queries.js';
 
-export async function isToken(req, res, next) {
+async function resolveAuthenticatedUser(req, res, next, options = {}) {
   try {
+    const { allowInactive = false } = options;
+
     let token = req.cookies?.[config.jwtCookieName];
     if (!token) {
       const authorization = req.header('authorization');
@@ -33,17 +35,12 @@ export async function isToken(req, res, next) {
       throw createError('Invalid token subject', 401);
     }
 
-    const { rows } = await pool.query(
-      'SELECT id, name, email, username, role, is_active FROM users WHERE id = $1',
-      [userIdNum]
-    );
-
-    if (!rows.length) {
+    const user = await getUserById(userIdNum);
+    if (!user) {
       throw createError('Authenticated user not found', 401);
     }
 
-    const user = rows[0];
-    if (!user.is_active) {
+    if (!allowInactive && !user.is_active) {
       throw createError('User account is inactive', 403);
     }
 
@@ -55,4 +52,12 @@ export async function isToken(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+export async function isToken(req, res, next) {
+  return resolveAuthenticatedUser(req, res, next);
+}
+
+export async function isTokenAllowInactive(req, res, next) {
+  return resolveAuthenticatedUser(req, res, next, { allowInactive: true });
 }

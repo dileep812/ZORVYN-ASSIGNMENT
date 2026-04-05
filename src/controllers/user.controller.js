@@ -1,19 +1,13 @@
-import pool from '../db/connection.db.js';
 import { hashPassword } from '../security/auth.security.js';
 import { createError } from '../utils/error.utils.js';
-
-async function getExistingAdmin() {
-  const { rows } = await pool.query(
-    `SELECT id FROM users WHERE role = 'admin' LIMIT 1`
-  );
-  return rows[0] || null;
-}
+import { getAllUsers, checkEmailUnique, checkUsernameUnique, getAdminUser } from '../utils/user.queries.js';
+import { validateUserId } from '../utils/validation.utils.js';
+import { getUserById } from '../utils/user.queries.js';
+import { executeUpdate, createNewUser } from '../utils/db.queries.js';
 
 export async function listUsers(req, res, next) {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, name, email, username, role, is_active, created_at FROM users ORDER BY id'
-    );
+    const rows = await getAllUsers();
     res.json({ data: rows });
   } catch (error) {
     next(error);
@@ -24,21 +18,35 @@ export async function createUser(req, res, next) {
   try {
     const { name, email, username, password, role, isActive } = req.body;
 
+    // Check email uniqueness before creation
+    const emailUnique = await checkEmailUnique(email);
+    if (!emailUnique) {
+      throw createError('Email already in use', 409);
+    }
+
+    // Check username uniqueness before creation
+    const usernameUnique = await checkUsernameUnique(username);
+    if (!usernameUnique) {
+      throw createError('Username already taken', 409);
+    }
+
     if (role === 'admin') {
-      const existingAdmin = await getExistingAdmin();
+      const existingAdmin = await getAdminUser();
       if (existingAdmin) {
         throw createError('Only one admin account is allowed', 409);
       }
     }
 
     const passwordHash = await hashPassword(password);
-    const { rows } = await pool.query(
-      `INSERT INTO users (name, email, username, password_hash, role, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, email, username, role, is_active, created_at`,
-      [name, email, username, passwordHash, role, isActive]
-    );
-    res.status(201).json({ data: rows[0] });
+    const result = await createNewUser({
+      name,
+      email,
+      username,
+      password_hash: passwordHash,
+      role,
+      is_active: isActive
+    });
+    res.status(201).json({ data: result });
   } catch (error) {
     next(error);
   }
@@ -47,91 +55,72 @@ export async function createUser(req, res, next) {
 export async function updateUser(req, res, next) {
   try {
     const userId = Number(req.params.id);
-    if (!Number.isInteger(userId) || userId <= 0) {
-      throw createError('Invalid user ID', 400);
-    }
+    validateUserId(userId);
 
-    const { rows: currentRows } = await pool.query(
-      `SELECT id, role, is_active
-       FROM users
-       WHERE id = $1`,
-      [userId]
-    );
-
-    if (!currentRows.length) {
+    const currentUser = await getUserById(userId, 'id, role');
+    if (!currentUser) {
       throw createError('User not found', 404);
     }
 
-    const currentUser = currentRows[0];
-
+    // Admin protection - only applies if admin trying to modify themselves or another admin
     if (currentUser.role === 'admin') {
+      // Cannot change admin to different role
       if (req.body.role !== undefined && req.body.role !== 'admin') {
         throw createError('The only admin account cannot be changed to a different role', 409);
       }
-
+      // Cannot deactivate admin (prevents deactivating any admin account)
       if (req.body.isActive === false) {
-        throw createError('The only admin account cannot be deactivated', 409);
+        throw createError('Admin accounts cannot be deactivated', 409);
       }
     }
 
+    // Admin cannot deactivate themselves via their own profile
+    if (userId === req.user.id && req.body.isActive === false) {
+      throw createError('You cannot deactivate your own account', 409);
+    }
+
+    // Check if promoting to admin
     if (req.body.role === 'admin' && currentUser.role !== 'admin') {
-      const existingAdmin = await getExistingAdmin();
+      const existingAdmin = await getAdminUser();
       if (existingAdmin) {
         throw createError('Only one admin account is allowed', 409);
       }
     }
 
-    const fields = [];
-    const values = [];
-    let paramIdx = 1;
-
-    if (req.body.name !== undefined) {
-      fields.push(`name = $${paramIdx++}`);
-      values.push(req.body.name);
-    }
-
+    // Build update object
+    const updateFields = {};
+    if (req.body.name !== undefined) updateFields.name = req.body.name;
+    
     if (req.body.email !== undefined) {
-      const { rows: emailCheckRows } = await pool.query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [req.body.email, userId]
-      );
-      if (emailCheckRows.length) {
+      const emailUnique = await checkEmailUnique(req.body.email, userId);
+      if (!emailUnique) {
         throw createError('Email already in use', 409);
       }
-      fields.push(`email = $${paramIdx++}`);
-      values.push(req.body.email);
+      updateFields.email = req.body.email;
     }
 
-    if (req.body.role !== undefined) {
-      fields.push(`role = $${paramIdx++}`);
-      values.push(req.body.role);
-    }
     if (req.body.username !== undefined) {
-      fields.push(`username = $${paramIdx++}`);
-      values.push(req.body.username);
+      const usernameUnique = await checkUsernameUnique(req.body.username, userId);
+      if (!usernameUnique) {
+        throw createError('Username already taken', 409);
+      }
+      updateFields.username = req.body.username;
     }
-    if (req.body.isActive !== undefined) {
-      fields.push(`is_active = $${paramIdx++}`);
-      values.push(req.body.isActive);
-    }
+    if (req.body.role !== undefined) updateFields.role = req.body.role;
+    if (req.body.isActive !== undefined) updateFields.is_active = req.body.isActive;
+    
     if (req.body.password !== undefined) {
       const passwordHash = await hashPassword(req.body.password);
-      fields.push(`password_hash = $${paramIdx++}`);
-      values.push(passwordHash);
+      updateFields.password_hash = passwordHash;
     }
 
-    fields.push(`updated_at = NOW()`);
-    values.push(userId);
-
-    const { rows } = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING id, name, email, username, role, is_active, updated_at`,
-      values
-    );
-
-    if (!rows.length) {
+    updateFields.updated_at = new Date().toISOString();
+    const result = await executeUpdate(updateFields, userId, 'users');
+    
+    if (!result) {
       throw createError('User not found', 404);
     }
-    res.json({ data: rows[0] });
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

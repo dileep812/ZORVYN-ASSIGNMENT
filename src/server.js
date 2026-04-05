@@ -1,7 +1,6 @@
 // Main HTTP entrypoint: wires middleware/routes and starts the Express server.
 import config from './config.js';
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
@@ -16,19 +15,24 @@ import dashboardRouter from './routes/dashboard.route.js';
 
 const app = express();
 
+app.disable('x-powered-by');
+if (config.trustProxy) {
+  app.set('trust proxy', config.trustProxy);
+}
+
 // Security and logging middleware
 app.use(helmet());
-app.use(cors({
-  origin: config.corsOrigin || true,
-  credentials: true,
-}));
-app.use(morgan('dev'));
-app.use(express.json());
+app.use(morgan(config.isProduction ? 'combined' : 'dev'));
+app.use(express.json({ limit: config.jsonBodyLimit }));
 app.use(cookieParser());
 
 // Health check (no auth required)
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({
+    status: 'ok',
+    environment: config.nodeEnv,
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
 });
 
 // Public auth routes
