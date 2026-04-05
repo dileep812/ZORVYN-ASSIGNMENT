@@ -1,8 +1,9 @@
 import pool from '../db/connection.db.js';
+import { createError } from '../utils/error.utils.js';
 
 export async function listRecords(req, res, next) {
   try {
-    const { type, category, startDate, endDate, page, limit } = req.validatedQuery || req.query;
+    const { type, category, startDate, endDate, page, limit } = req.validatedQuery || {};
 
     const where = ['is_deleted = FALSE'];
     const values = [];
@@ -25,9 +26,7 @@ export async function listRecords(req, res, next) {
     }
 
     if (startDate && endDate && startDate > endDate) {
-      const err = new Error('startDate cannot be after endDate');
-      err.statusCode = 400;
-      throw err;
+      throw createError('startDate cannot be after endDate', 400);
     }
 
     const offset = (page - 1) * limit;
@@ -36,7 +35,7 @@ export async function listRecords(req, res, next) {
 
     const whereClause = where.join(' AND ');
     const { rows: records } = await pool.query(
-      `SELECT id, amount, type, category, record_date, notes, created_by, version, created_at, updated_at
+      `SELECT id, amount, type, category, record_date, notes, created_by, created_at, updated_at
        FROM financial_records
        WHERE ${whereClause}
        ORDER BY record_date DESC, id DESC
@@ -62,10 +61,10 @@ export async function createRecord(req, res, next) {
   try {
     const { amount, type, category, date, notes } = req.body;
     const { rows } = await pool.query(
-      `INSERT INTO financial_records (amount, type, category, record_date, notes, created_by, version)
-       VALUES ($1, $2, $3, $4, $5, $6, 1)
-       RETURNING id, amount, type, category, record_date, notes, created_by, version, created_at, updated_at`,
-      [amount, type, category, date, notes || null, req.user.id]
+      `INSERT INTO financial_records (amount, type, category, record_date, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, amount, type, category, record_date, notes, created_by, created_at, updated_at`,
+      [amount, type, category, date, notes ?? '', req.user.id]
     );
     res.status(201).json({ data: rows[0] });
   } catch (error) {
@@ -77,12 +76,10 @@ export async function updateRecord(req, res, next) {
   try {
     const recordId = Number(req.params.id);
     if (!Number.isInteger(recordId) || recordId <= 0) {
-      const err = new Error('Invalid record ID');
-      err.statusCode = 400;
-      throw err;
+      throw createError('Invalid record ID', 400);
     }
 
-    const { amount, type, category, date, notes, version } = req.body;
+    const { amount, type, category, date, notes } = req.body;
 
     const fields = [];
     const values = [];
@@ -109,24 +106,20 @@ export async function updateRecord(req, res, next) {
       values.push(notes);
     }
 
-    fields.push(`version = version + 1`);
     fields.push(`updated_at = NOW()`);
 
     values.push(recordId);
-    values.push(version);
 
     const { rows } = await pool.query(
       `UPDATE financial_records
        SET ${fields.join(', ')}
-       WHERE id = $${paramIdx++} AND version = $${paramIdx} AND is_deleted = FALSE
-       RETURNING id, amount, type, category, record_date, notes, created_by, version, created_at, updated_at`,
+       WHERE id = $${paramIdx} AND is_deleted = FALSE
+       RETURNING id, amount, type, category, record_date, notes, created_by, created_at, updated_at`,
       values
     );
 
     if (!rows.length) {
-      const err = new Error('Record not found or was modified by another user');
-      err.statusCode = 409;
-      throw err;
+      throw createError('Record not found', 404);
     }
 
     res.json({ data: rows[0] });
@@ -139,23 +132,19 @@ export async function deleteRecord(req, res, next) {
   try {
     const recordId = Number(req.params.id);
     if (!Number.isInteger(recordId) || recordId <= 0) {
-      const err = new Error('Invalid record ID');
-      err.statusCode = 400;
-      throw err;
+      throw createError('Invalid record ID', 400);
     }
 
     const { rows } = await pool.query(
       `UPDATE financial_records
-       SET is_deleted = TRUE, updated_at = NOW(), version = version + 1
+       SET is_deleted = TRUE, updated_at = NOW()
        WHERE id = $1 AND is_deleted = FALSE
        RETURNING id`,
       [recordId]
     );
 
     if (!rows.length) {
-      const err = new Error('Record not found');
-      err.statusCode = 404;
-      throw err;
+      throw createError('Record not found', 404);
     }
     res.status(204).send();
   } catch (error) {

@@ -242,7 +242,7 @@ export function recordUpdateSchema(input) {
     return failure([{ field: 'body', message: 'Request body must be an object' }]);
   }
 
-  addUnknownFieldIssues(input, ['amount', 'type', 'category', 'date', 'notes', 'version'], issues);
+  addUnknownFieldIssues(input, ['amount', 'type', 'category', 'date', 'notes'], issues);
 
   if (input?.amount !== undefined) {
     if (typeof input.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
@@ -290,15 +290,9 @@ export function recordUpdateSchema(input) {
     }
   }
 
-  if (typeof input?.version !== 'number' || !Number.isInteger(input.version) || input.version <= 0) {
-    issues.push({ field: 'version', message: 'Version must be a positive integer' });
-  } else {
-    data.version = input.version;
-  }
-
   const hasPatchField = ['amount', 'type', 'category', 'date', 'notes'].some((k) => input?.[k] !== undefined);
   if (!hasPatchField) {
-    issues.push({ field: 'body', message: 'At least one field plus version required' });
+    issues.push({ field: 'body', message: 'At least one field required' });
   }
 
   return issues.length ? failure(issues) : success(data);

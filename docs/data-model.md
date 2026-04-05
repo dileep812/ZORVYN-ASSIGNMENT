@@ -25,7 +25,6 @@ Columns:
 - record_date
 - notes
 - created_by
-- version
 - is_deleted
 - created_at
 - updated_at

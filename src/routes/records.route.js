@@ -19,7 +19,7 @@ router.get('/', requireRole('analyst', 'admin'), validateQuery(recordListSchema)
 // Create financial record (admin only)
 router.post('/', requireRole('admin'), validateBody(recordCreateSchema), createRecord);
 
-// Update financial record (admin only) with optimistic locking
+// Update financial record (admin only)
 router.patch('/:id', requireRole('admin'), validateBody(recordUpdateSchema), updateRecord);
 
 // Soft delete record (admin only)

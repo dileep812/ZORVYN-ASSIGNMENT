@@ -280,7 +280,6 @@ Response:
       "record_date": "2026-04-01",
       "notes": "team lunch",
       "created_by": 1,
-      "version": 1,
       "created_at": "2026-04-01T12:00:00.000Z",
       "updated_at": "2026-04-01T12:00:00.000Z"
     }
@@ -321,7 +320,6 @@ Response:
     "record_date": "2026-04-01",
     "notes": "monthly salary",
     "created_by": 1,
-    "version": 1,
     "created_at": "2026-04-01T12:00:00.000Z",
     "updated_at": "2026-04-01T12:00:00.000Z"
   }
@@ -336,8 +334,7 @@ Request:
 
 ```json
 {
-  "amount": 1100,
-  "version": 1
+  "amount": 1100
 }
 ```
 
@@ -353,7 +350,6 @@ Response:
     "record_date": "2026-04-01",
     "notes": "monthly salary",
     "created_by": 1,
-    "version": 2,
     "created_at": "2026-04-01T12:00:00.000Z",
     "updated_at": "2026-04-01T12:05:00.000Z"
   }
@@ -363,7 +359,7 @@ Response:
 Possible errors:
 
 - `400` invalid record id/body
-- `409` stale version or concurrent update
+- `404` record not found
 
 #### Delete record
 
@@ -375,7 +371,7 @@ Response:
 
 ### Dashboard
 
-`GET /api/dashboard/dashboard?startDate=2026-01-01&endDate=2026-12-31`
+`GET /api/dashboard?startDate=2026-01-01&endDate=2026-12-31`
 
 Response:
 
@@ -398,6 +394,55 @@ Response:
   }
 }
 ```
+
+#### Dashboard insights (analyst/admin)
+
+`GET /api/dashboard/insights?startDate=2026-01-01&endDate=2026-12-31&interval=month`
+
+Response:
+
+```json
+{
+  "data": {
+    "filters": {
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "interval": "month"
+    },
+    "metrics": {
+      "totalIncome": 12000,
+      "totalExpenses": 4500,
+      "netBalance": 7500,
+      "recordsCount": 42,
+      "periodsCount": 12,
+      "averageIncomePerPeriod": 1000,
+      "averageExpensePerPeriod": 375,
+      "savingsRate": 62.5,
+      "expenseToIncomeRatio": 0.375
+    },
+    "trend": [
+      {
+        "period": "2026-01",
+        "income": "2000.00",
+        "expense": "900.00",
+        "net": 1100
+      }
+    ],
+    "topExpenseCategories": [
+      { "category": "food", "totalExpense": "1200.00" }
+    ],
+    "topIncomeCategories": [
+      { "category": "salary", "totalIncome": "10000.00" }
+    ]
+  }
+}
+```
+
+Possible errors:
+
+- `400` invalid query parameters
+- `401` missing/invalid token
+- `403` role is not analyst/admin
 
 ## Common Error Format
 

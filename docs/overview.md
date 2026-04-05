@@ -1,6 +1,6 @@
 # Overview
 
-This backend powers a shared finance dashboard with PostgreSQL persistence, JWT authentication, role-based access control, manual validation, and concurrency-safe updates.
+This backend powers a shared finance dashboard with PostgreSQL persistence, JWT authentication, role-based access control, and manual validation.
 
 ## Stack
 

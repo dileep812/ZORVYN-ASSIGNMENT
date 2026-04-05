@@ -1,5 +1,6 @@
 import pool from '../db/connection.db.js';
 import { hashPassword } from '../security/auth.security.js';
+import { createError } from '../utils/error.utils.js';
 
 async function getExistingAdmin() {
   const { rows } = await pool.query(
@@ -26,9 +27,7 @@ export async function createUser(req, res, next) {
     if (role === 'admin') {
       const existingAdmin = await getExistingAdmin();
       if (existingAdmin) {
-        const err = new Error('Only one admin account is allowed');
-        err.statusCode = 409;
-        throw err;
+        throw createError('Only one admin account is allowed', 409);
       }
     }
 
@@ -49,9 +48,7 @@ export async function updateUser(req, res, next) {
   try {
     const userId = Number(req.params.id);
     if (!Number.isInteger(userId) || userId <= 0) {
-      const err = new Error('Invalid user ID');
-      err.statusCode = 400;
-      throw err;
+      throw createError('Invalid user ID', 400);
     }
 
     const { rows: currentRows } = await pool.query(
@@ -62,33 +59,25 @@ export async function updateUser(req, res, next) {
     );
 
     if (!currentRows.length) {
-      const err = new Error('User not found');
-      err.statusCode = 404;
-      throw err;
+      throw createError('User not found', 404);
     }
 
     const currentUser = currentRows[0];
 
     if (currentUser.role === 'admin') {
       if (req.body.role !== undefined && req.body.role !== 'admin') {
-        const err = new Error('The only admin account cannot be changed to a different role');
-        err.statusCode = 409;
-        throw err;
+        throw createError('The only admin account cannot be changed to a different role', 409);
       }
 
       if (req.body.isActive === false) {
-        const err = new Error('The only admin account cannot be deactivated');
-        err.statusCode = 409;
-        throw err;
+        throw createError('The only admin account cannot be deactivated', 409);
       }
     }
 
     if (req.body.role === 'admin' && currentUser.role !== 'admin') {
       const existingAdmin = await getExistingAdmin();
       if (existingAdmin) {
-        const err = new Error('Only one admin account is allowed');
-        err.statusCode = 409;
-        throw err;
+        throw createError('Only one admin account is allowed', 409);
       }
     }
 
@@ -107,9 +96,7 @@ export async function updateUser(req, res, next) {
         [req.body.email, userId]
       );
       if (emailCheckRows.length) {
-        const err = new Error('Email already in use');
-        err.statusCode = 409;
-        throw err;
+        throw createError('Email already in use', 409);
       }
       fields.push(`email = $${paramIdx++}`);
       values.push(req.body.email);
@@ -142,9 +129,7 @@ export async function updateUser(req, res, next) {
     );
 
     if (!rows.length) {
-      const err = new Error('User not found');
-      err.statusCode = 404;
-      throw err;
+      throw createError('User not found', 404);
     }
     res.json({ data: rows[0] });
   } catch (error) {

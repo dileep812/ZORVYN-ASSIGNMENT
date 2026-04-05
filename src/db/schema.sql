@@ -27,7 +27,7 @@ WHERE password_hash IS NULL;
 ALTER TABLE users ALTER COLUMN username SET NOT NULL;
 ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL;
 
--- Financial records with optimistic locking for concurrency safety
+-- Financial records
 CREATE TABLE IF NOT EXISTS financial_records (
   id BIGSERIAL PRIMARY KEY,
   amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
@@ -38,9 +38,11 @@ CREATE TABLE IF NOT EXISTS financial_records (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  version INTEGER NOT NULL DEFAULT 1,
   is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Backward-compatible cleanup for existing databases
+ALTER TABLE financial_records DROP COLUMN IF EXISTS version;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_financial_records_date ON financial_records (record_date);

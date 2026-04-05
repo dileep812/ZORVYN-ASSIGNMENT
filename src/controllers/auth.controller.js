@@ -2,12 +2,7 @@
 import pool from '../db/connection.db.js';
 import config from '../config.js';
 import { createAccessToken, hashPassword, verifyPassword } from '../security/auth.security.js';
-
-function createHttpError(message, statusCode) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  return err;
-}
+import { createError } from '../utils/error.utils.js';
 
 function getAuthCookieOptions() {
   const cookieOptions = {
@@ -36,17 +31,17 @@ export async function login(req, res, next) {
     );
 
     if (!rows.length) {
-      throw createHttpError('Invalid username or password', 401);
+      throw createError('Invalid username or password', 401);
     }
 
     const user = rows[0];
     const passwordOk = await verifyPassword(password, user.password_hash);
     if (!passwordOk) {
-      throw createHttpError('Invalid username or password', 401);
+      throw createError('Invalid username or password', 401);
     }
 
     if (!user.is_active) {
-      throw createHttpError('User account is inactive', 403);
+      throw createError('User account is inactive', 403);
     }
 
     const token = createAccessToken(user);
@@ -94,9 +89,7 @@ export async function updateOwnProfile(req, res, next) {
     );
 
     if (!currentUserRows.length) {
-      const err = new Error('Authenticated user not found');
-      err.statusCode = 401;
-      throw err;
+      throw createError('Authenticated user not found', 401);
     }
 
     const currentUser = currentUserRows[0];
@@ -116,9 +109,7 @@ export async function updateOwnProfile(req, res, next) {
         [username, req.user.id]
       );
       if (usernameCheckRows.length) {
-        const err = new Error('Username already taken');
-        err.statusCode = 409;
-        throw err;
+        throw createError('Username already taken', 409);
       }
       updates.username = username;
       updateFields.push(`username = $${paramCount}`);
@@ -130,9 +121,7 @@ export async function updateOwnProfile(req, res, next) {
     if (newPassword !== undefined) {
       const currentPasswordOk = await verifyPassword(oldPassword, currentUser.password_hash);
       if (!currentPasswordOk) {
-        const err = new Error('Current password is incorrect');
-        err.statusCode = 401;
-        throw err;
+        throw createError('Current password is incorrect', 401);
       }
       const passwordHash = await hashPassword(newPassword);
       updates.password_hash = passwordHash;
@@ -145,9 +134,7 @@ export async function updateOwnProfile(req, res, next) {
     if (isActive !== undefined) {
       // Check if user is trying to reactivate (set to true) while currently inactive
       if (isActive === true && currentUser.is_active === false) {
-        const err = new Error('User account reactivation can only be done by an admin');
-        err.statusCode = 403;
-        throw err;
+        throw createError('User account reactivation can only be done by an admin', 403);
       }
       updates.is_active = isActive;
       updateFields.push(`is_active = $${paramCount}`);

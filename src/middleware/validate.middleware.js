@@ -1,9 +1,4 @@
-function createValidationError(message, details) {
-  const err = new Error(message);
-  err.statusCode = 400;
-  err.details = details;
-  return err;
-}
+import { createError } from '../utils/error.utils.js';
 
 export function validateBody(schema) {
   return (req, res, next) => {
@@ -13,7 +8,7 @@ export function validateBody(schema) {
         field: issue.field,
         message: issue.message,
       }));
-      return next(createValidationError('Invalid request body', details));
+      return next(createError('Invalid request body', 400, details));
     }
     req.body = result.data;
     next();
@@ -28,7 +23,7 @@ export function validateQuery(schema) {
         field: issue.field,
         message: issue.message,
       }));
-      return next(createValidationError('Invalid query parameters', details));
+      return next(createError('Invalid query parameters', 400, details));
     }
     req.validatedQuery = result.data;
     next();
