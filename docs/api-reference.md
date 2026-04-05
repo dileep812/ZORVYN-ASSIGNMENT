@@ -88,25 +88,73 @@ Response:
 }
 ```
 
-### Change Own Password
+### Update Own Profile
 
-`PATCH /api/me/password`
+`PATCH /api/me/profile`
 
-Request:
+Allows authenticated users to update their profile. Users can modify:
+- `name` — Display name (2-120 characters)
+- `username` — Username must be unique (3-30 chars, alphanumeric with `-`, `_`, `.`)
+- `newPassword` — New password (8-72 characters). **Requires `oldPassword` for verification.**
+- `oldPassword` — Old/current password (required when changing password for security verification)
+- `isActive` — User's active status with restrictions:
+  - Users can deactivate themselves (set `isActive: false`)
+  - Users cannot reactivate themselves (cannot set `isActive: true` if currently false)
+  - Reactivation requires admin action
+
+**Important restrictions:**
+- Role cannot be changed by users (admin-only)
+- Username must be unique across the system
+- Password changes require current password verification
+- All fields are optional; omit to skip updating
+
+Request examples:
 
 ```json
 {
-  "currentPassword": "ChangeMe123!",
-  "newPassword": "MyNewStrongPass123!",
-  "confirmPassword": "MyNewStrongPass123!"
+  "name": "John Doe Updated"
+}
+```
+
+```json
+{
+  "username": "john.doe"
+}
+```
+
+```json
+{
+  "newPassword": "NewStrongPassword123!",
+  "oldPassword": "OldPassword123!"
+}\n```
+
+```json
+{
+  "isActive": false
 }
 ```
 
 Response:
 
 ```json
-{ "message": "Password updated successfully" }
+{
+  "message": "Profile updated successfully",
+  "data": {
+    "id": 1,
+    "name": "John Doe Updated",
+    "email": "admin1@finance.local",
+    "username": "john.doe",
+    "role": "admin",
+    "isActive": false
+  }
+}
 ```
+
+Possible errors:
+- `400` invalid fields or format
+- `401` authentication required or incorrect current password
+- `409` username already taken
+- `403` attempting to reactivate account (admin-only)
 
 ### Users
 
@@ -169,6 +217,10 @@ Response:
 
 `PATCH /api/users/:id`
 
+Admin-only endpoint. Allows updating user attributes: name, email, username, password, role, and isActive.
+
+**Email uniqueness:** New email must not already exist in the system.
+
 Request examples:
 
 ```json
@@ -176,7 +228,15 @@ Request examples:
 ```
 
 ```json
+{ "email": "newemail@finance.local" }
+```
+
+```json
 { "password": "NewStrongPass123!" }
+```
+
+```json
+{ "name": "Updated Name", "role": "analyst" }
 ```
 
 Response:
@@ -194,6 +254,12 @@ Response:
   }
 }
 ```
+
+Possible errors:
+- `400` invalid fields or format
+- `403` insufficient permissions (admin-only)
+- `404` user not found
+- `409` email already in use or admin-only restrictions violated
 
 ### Records
 

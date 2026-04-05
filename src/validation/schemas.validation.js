@@ -101,10 +101,14 @@ export function userCreateSchema(input) {
     data.role = input.role;
   }
 
-  if (input?.isActive !== undefined && typeof input.isActive !== 'boolean') {
-    issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
+  if (input?.isActive !== undefined) {
+    if (typeof input.isActive !== 'boolean') {
+      issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
+    } else {
+      data.isActive = input.isActive;
+    }
   } else {
-    data.isActive = input?.isActive ?? true;
+    data.isActive = true;
   }
 
   return issues.length ? failure(issues) : success(data);
@@ -118,7 +122,7 @@ export function userUpdateSchema(input) {
     return failure([{ field: 'body', message: 'Request body must be an object' }]);
   }
 
-  addUnknownFieldIssues(input, ['name', 'username', 'password', 'role', 'isActive'], issues);
+  addUnknownFieldIssues(input, ['name', 'email', 'username', 'password', 'role', 'isActive'], issues);
 
   if (input?.name !== undefined) {
     const name = normalizeString(input.name);
@@ -126,6 +130,16 @@ export function userUpdateSchema(input) {
       issues.push({ field: 'name', message: 'Name must be between 2 and 120 characters' });
     } else {
       data.name = name;
+    }
+  }
+
+  if (input?.email !== undefined) {
+    const email = normalizeString(input.email);
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof email !== 'string' || !emailPattern.test(email)) {
+      issues.push({ field: 'email', message: 'Invalid email format' });
+    } else {
+      data.email = email.toLowerCase();
     }
   }
 
@@ -454,39 +468,61 @@ export function loginSchema(input) {
   return issues.length ? failure(issues) : success(data);
 }
 
-export function changePasswordSchema(input) {
+export function updateOwnProfileSchema(input) {
   if (!isPlainObject(input)) {
     return failure([{ field: 'body', message: 'Request body must be an object' }]);
   }
 
   const issues = [];
   const data = {};
-  addUnknownFieldIssues(input, ['currentPassword', 'newPassword', 'confirmPassword'], issues);
+  addUnknownFieldIssues(input, ['name', 'username', 'newPassword', 'oldPassword', 'isActive'], issues);
 
-  if (!isValidPassword(input?.currentPassword)) {
-    issues.push({ field: 'currentPassword', message: 'Current password is required and must be between 8 and 72 characters' });
-  } else {
-    data.currentPassword = input.currentPassword;
+  if (input?.name !== undefined) {
+    const name = normalizeString(input.name);
+    if (typeof name !== 'string' || name.length < 2 || name.length > 120) {
+      issues.push({ field: 'name', message: 'Name must be between 2 and 120 characters' });
+    } else {
+      data.name = name;
+    }
   }
 
-  if (!isValidPassword(input?.newPassword)) {
-    issues.push({ field: 'newPassword', message: 'New password must be between 8 and 72 characters' });
-  } else {
-    data.newPassword = input.newPassword;
+  if (input?.username !== undefined) {
+    const username = normalizeString(input.username);
+    if (!isValidUsername(username)) {
+      issues.push({ field: 'username', message: 'Username must be 3-30 chars and contain only letters, numbers, _, -, or .' });
+    } else {
+      data.username = username.toLowerCase();
+    }
   }
 
-  if (!isValidPassword(input?.confirmPassword)) {
-    issues.push({ field: 'confirmPassword', message: 'Confirm password must be between 8 and 72 characters' });
-  } else {
-    data.confirmPassword = input.confirmPassword;
+  if (input?.newPassword !== undefined) {
+    if (!isValidPassword(input.newPassword)) {
+      issues.push({ field: 'newPassword', message: 'Password must be between 8 and 72 characters' });
+    } else {
+      data.newPassword = input.newPassword;
+    }
+    
+    if (!isValidPassword(input?.oldPassword)) {
+      issues.push({ field: 'oldPassword', message: 'Old password is required to change password and must be between 8 and 72 characters' });
+    } else {
+      data.oldPassword = input.oldPassword;
+    }
+
+    if (data.newPassword && data.oldPassword && data.newPassword === data.oldPassword) {
+      issues.push({ field: 'newPassword', message: 'New password must be different from current password' });
+    }
   }
 
-  if (data.newPassword && data.confirmPassword && data.newPassword !== data.confirmPassword) {
-    issues.push({ field: 'confirmPassword', message: 'Confirm password must match new password' });
+  if (input?.isActive !== undefined) {
+    if (typeof input.isActive !== 'boolean') {
+      issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
+    } else {
+      data.isActive = input.isActive;
+    }
   }
 
-  if (data.currentPassword && data.newPassword && data.currentPassword === data.newPassword) {
-    issues.push({ field: 'newPassword', message: 'New password must be different from current password' });
+  if (Object.keys(data).length === 0 && Object.keys(input).length > 0) {
+    issues.push({ field: 'body', message: 'At least one valid field required' });
   }
 
   return issues.length ? failure(issues) : success(data);

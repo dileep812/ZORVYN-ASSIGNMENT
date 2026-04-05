@@ -41,18 +41,12 @@ Send the JWT in the header:
 
 `Authorization: Bearer <token>`
 
-## Password Change
+## Cookie Support
 
-Endpoint:
+The JWT token is automatically set as an HTTP-only cookie on login. For browser-based clients, ensure CORS is configured with `credentials: true`. Token verification happens on every protected request.
 
-`PATCH /api/me/password`
+## Profile Management
 
-Request body:
+Users can update their profile including password through: `PATCH /api/me/profile`
 
-```json
-{
-  "currentPassword": "ChangeMe123!",
-  "newPassword": "MyNewStrongPass123!",
-  "confirmPassword": "MyNewStrongPass123!"
-}
-```
+See the **API Reference** for details on profile update restrictions and password change.

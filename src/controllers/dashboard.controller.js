@@ -2,7 +2,7 @@ import pool from '../db/connection.db.js';
 
 export async function getDashboard(req, res, next) {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate } = req.validatedQuery || req.query;
 
     if (startDate && endDate && startDate > endDate) {
       const err = new Error('startDate cannot be after endDate');

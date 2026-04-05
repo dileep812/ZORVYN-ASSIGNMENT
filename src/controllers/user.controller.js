@@ -100,6 +100,21 @@ export async function updateUser(req, res, next) {
       fields.push(`name = $${paramIdx++}`);
       values.push(req.body.name);
     }
+
+    if (req.body.email !== undefined) {
+      const { rows: emailCheckRows } = await pool.query(
+        'SELECT id FROM users WHERE email = $1 AND id != $2',
+        [req.body.email, userId]
+      );
+      if (emailCheckRows.length) {
+        const err = new Error('Email already in use');
+        err.statusCode = 409;
+        throw err;
+      }
+      fields.push(`email = $${paramIdx++}`);
+      values.push(req.body.email);
+    }
+
     if (req.body.role !== undefined) {
       fields.push(`role = $${paramIdx++}`);
       values.push(req.body.role);

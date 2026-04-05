@@ -30,7 +30,7 @@ export function validateQuery(schema) {
       }));
       return next(createValidationError('Invalid query parameters', details));
     }
-    req.query = result.data;
+    req.validatedQuery = result.data;
     next();
   };
 }

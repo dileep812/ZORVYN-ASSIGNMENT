@@ -4,8 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 
-import { requireAuth } from './middleware/auth.middleware.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 
 import authRouter from './routes/auth.route.js';
@@ -18,9 +18,13 @@ const app = express();
 
 // Security and logging middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: config.corsOrigin || true,
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(cookieParser());
 
 // Health check (no auth required)
 app.get('/health', (req, res) => {
@@ -29,9 +33,6 @@ app.get('/health', (req, res) => {
 
 // Public auth routes
 app.use('/api/auth', authRouter);
-
-// Protected API routes
-app.use('/api', requireAuth);
 
 // Current user and password change routes
 app.use('/api/me', meRouter);

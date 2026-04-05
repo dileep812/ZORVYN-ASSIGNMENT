@@ -1,5 +1,6 @@
 // Authentication middleware: validates Bearer JWT and loads active user context.
 import pool from '../db/connection.db.js';
+import config from '../config.js';
 import { verifyAccessToken } from '../security/auth.security.js';
 
 function createHttpError(message, statusCode) {
@@ -8,16 +9,21 @@ function createHttpError(message, statusCode) {
   return err;
 }
 
-export async function requireAuth(req, res, next) {
+export async function isToken(req, res, next) {
   try {
-    const authorization = req.header('authorization');
-    if (!authorization) {
-      throw createHttpError('Missing Authorization header', 401);
+    let token = req.cookies?.[config.jwtCookieName];
+    if (!token) {
+      const authorization = req.header('authorization');
+      if (authorization) {
+        const [scheme, bearerToken] = authorization.split(' ');
+        if (scheme === 'Bearer' && bearerToken) {
+          token = bearerToken;
+        }
+      }
     }
 
-    const [scheme, token] = authorization.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      throw createHttpError('Authorization header must be in format: Bearer <token>', 401);
+    if (!token) {
+      throw createHttpError('Authentication token missing', 401);
     }
 
     let payload;
@@ -47,6 +53,9 @@ export async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    req.userRole = user.role;
+    res.locals.userRole = user.role;
+    res.setHeader('x-user-role', user.role);
     next();
   } catch (error) {
     next(error);

@@ -2,7 +2,7 @@ import pool from '../db/connection.db.js';
 
 export async function listRecords(req, res, next) {
   try {
-    const { type, category, startDate, endDate, page, limit } = req.query;
+    const { type, category, startDate, endDate, page, limit } = req.validatedQuery || req.query;
 
     const where = ['is_deleted = FALSE'];
     const values = [];

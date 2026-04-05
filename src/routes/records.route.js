@@ -1,4 +1,5 @@
 import express from 'express';
+import { isToken } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/rbac.middleware.js';
 import { validateBody, validateQuery } from '../middleware/validate.middleware.js';
 import {
@@ -9,6 +10,8 @@ import {
 import { listRecords, createRecord, updateRecord, deleteRecord } from '../controllers/record.controller.js';
 
 const router = express.Router();
+
+router.use(isToken);
 
 // List all financial records (analyst and admin can read)
 router.get('/', requireRole('analyst', 'admin'), validateQuery(recordListSchema), listRecords);
