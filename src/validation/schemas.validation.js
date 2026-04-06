@@ -122,7 +122,7 @@ export function userUpdateSchema(input) {
     return failure([{ field: 'body', message: 'Request body must be an object' }]);
   }
 
-  addUnknownFieldIssues(input, ['name', 'email', 'username', 'password', 'role', 'isActive'], issues);
+  addUnknownFieldIssues(input, ['name', 'email', 'username', 'role', 'isActive'], issues);
 
   if (input?.name !== undefined) {
     const name = normalizeString(input.name);
@@ -160,14 +160,6 @@ export function userUpdateSchema(input) {
     }
   }
 
-  if (input?.password !== undefined) {
-    if (!isValidPassword(input.password)) {
-      issues.push({ field: 'password', message: 'Password must be between 8 and 72 characters' });
-    } else {
-      data.password = input.password;
-    }
-  }
-
   if (input?.isActive !== undefined) {
     if (typeof input.isActive !== 'boolean') {
       issues.push({ field: 'isActive', message: 'isActive must be a boolean' });
@@ -192,32 +184,35 @@ export function recordCreateSchema(input) {
   const data = {};
 
   if (!isPlainObject(input)) {
-    return failure([{ field: 'body', message: 'Request body must be an object' }]);
+    return {
+      issues: [{ field: `${pathPrefix}body`, message: 'Request body must be an object' }],
+      data,
+    };
   }
 
   addUnknownFieldIssues(input, ['amount', 'type', 'category', 'date', 'notes'], issues);
 
   if (typeof input?.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
-    issues.push({ field: 'amount', message: 'Amount must be greater than 0' });
+    issues.push({ field: `${pathPrefix}amount`, message: 'Amount must be greater than 0' });
   } else {
     data.amount = input.amount;
   }
 
   if (!isRecordType(input?.type)) {
-    issues.push({ field: 'type', message: 'Type must be income or expense' });
+    issues.push({ field: `${pathPrefix}type`, message: 'Type must be income or expense' });
   } else {
     data.type = input.type;
   }
 
   const category = normalizeString(input?.category);
   if (typeof category !== 'string' || category.length < 1 || category.length > 100) {
-    issues.push({ field: 'category', message: 'Category must be between 1 and 100 characters' });
+    issues.push({ field: `${pathPrefix}category`, message: 'Category must be between 1 and 100 characters' });
   } else {
     data.category = category;
   }
 
   if (!isValidDateString(input?.date)) {
-    issues.push({ field: 'date', message: 'Invalid date format (YYYY-MM-DD)' });
+    issues.push({ field: `${pathPrefix}date`, message: 'Invalid date format (YYYY-MM-DD)' });
   } else {
     data.date = input.date;
   }
@@ -225,11 +220,48 @@ export function recordCreateSchema(input) {
   if (input?.notes !== undefined) {
     const notes = normalizeString(input.notes);
     if (typeof notes !== 'string' || notes.length > 500) {
-      issues.push({ field: 'notes', message: 'Notes must be at most 500 characters' });
+      issues.push({ field: `${pathPrefix}notes`, message: 'Notes must be at most 500 characters' });
     } else {
       data.notes = notes;
     }
   }
+
+  return { issues, data };
+}
+
+export function recordCreateSchema(input) {
+  const { issues, data } = validateRecordCreateItem(input);
+  return issues.length ? failure(issues) : success(data);
+}
+
+export function recordCreateManySchema(input) {
+  if (Array.isArray(input)) {
+    if (input.length === 0) {
+      return failure([{ field: 'body', message: 'Request body array must contain at least one record' }]);
+    }
+    if (input.length > 100) {
+      return failure([{ field: 'body', message: 'A maximum of 100 records can be created per request' }]);
+    }
+
+    const issues = [];
+    const records = [];
+    input.forEach((item, index) => {
+      const result = validateRecordCreateItem(item, `records[${index}].`);
+      issues.push(...result.issues);
+      if (result.issues.length === 0) {
+        records.push(result.data);
+      }
+    });
+
+    return issues.length ? failure(issues) : success({ records });
+  }
+
+  const single = validateRecordCreateItem(input);
+  if (single.issues.length) {
+    return failure(single.issues);
+  }
+
+  return success({ records: [single.data] });
 
   return issues.length ? failure(issues) : success(data);
 }

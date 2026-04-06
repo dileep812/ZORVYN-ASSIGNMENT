@@ -122,7 +122,6 @@ Token expires in 1 hour. Verification occurs on every request.
 
 ## Documentation
 
-- **[Setup Guide](docs/setup.md)** — Detailed installation and configuration
 - **[API Reference](docs/api-reference.md)** — Complete endpoint documentation with examples
 
 ## Error Handling
@@ -154,7 +153,6 @@ Common status codes:
 - ✅ CSRF protection via HTTP-only cookies
 - ✅ XSS prevention via proper JSON encoding
 - ✅ Rate limiting recommended for production
-- ✅ CORS configured for frontend origin
 
 ## Performance
 
@@ -185,12 +183,12 @@ curl http://localhost:4000/api/dashboard \
 
 Default password: `ChangeMe123!`
 
-| Username | Role | Email |
-|----------|------|-------|
-| admin1 | admin | admin1@finance.local |
-| analyst1 | analyst | analyst1@finance.local |
-| analyst2 | analyst | analyst2@finance.local |
-| viewer1 | viewer | viewer1@finance.local |
+| Username | Role | Email | Password |
+|----------|------|-------|----------|
+| admin1 | admin | admin1@finance.local | ChangeMe123! |
+| analyst1 | analyst | analyst1@finance.local | ChangeMe123! |
+| analyst2 | analyst | analyst2@finance.local | ChangeMe123! |
+| viewer1 | viewer | viewer1@finance.local | ChangeMe123! |
 
 **⚠️ Change these passwords in production!**
 
@@ -205,7 +203,3 @@ Environment variables (see `.env.example`):
 | `JWT_SECRET` | - | Secret for signing tokens |
 | `JWT_EXPIRES_IN` | 1h | Token expiration time |
 | `NODE_ENV` | development | Environment mode |
-
-## License
-
-Proprietary - All rights reserved

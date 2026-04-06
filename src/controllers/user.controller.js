@@ -109,11 +109,6 @@ export async function updateUser(req, res, next) {
     if (req.body.role !== undefined) updateFields.role = req.body.role;
     if (req.body.isActive !== undefined) updateFields.is_active = req.body.isActive;
     
-    if (req.body.password !== undefined) {
-      const passwordHash = await hashPassword(req.body.password);
-      updateFields.password_hash = passwordHash;
-    }
-
     updateFields.updated_at = new Date().toISOString();
     const result = await executeUpdate(updateFields, userId, 'users');
     

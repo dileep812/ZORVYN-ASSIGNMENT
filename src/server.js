@@ -1,6 +1,7 @@
 // Main HTTP entrypoint: wires middleware/routes and starts the Express server.
 import config from './config.js';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
@@ -15,6 +16,14 @@ import dashboardRouter from './routes/dashboard.route.js';
 
 const app = express();
 
+const healthRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many health requests. Please try again later.' },
+});
+
 // Security and logging middleware
 app.use(helmet());
 app.use(morgan(config.isProduction ? 'combined' : 'dev'));
@@ -22,7 +31,7 @@ app.use(express.json({ limit: config.jsonBodyLimit }));
 app.use(cookieParser());
 
 // Health check (no auth required)
-app.get('/health', (req, res) => {
+app.get('/health', healthRateLimiter, (req, res) => {
   res.json({
     status: 'ok',
     environment: config.nodeEnv,

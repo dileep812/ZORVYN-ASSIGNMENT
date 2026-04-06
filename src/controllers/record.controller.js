@@ -62,21 +62,35 @@ export async function listRecords(req, res, next) {
 
 export async function createRecord(req, res, next) {
   try {
-    const { amount, type, category, date, notes } = req.body;
-    
-    // Validate amount is positive
-    validatePositiveNumber(amount, 'amount');
+    const records = req.body.records;
 
-    const result = await createNewRecord({
-      amount,
-      type,
-      category,
-      record_date: date,
-      notes: notes ?? '',
-      created_by: req.user.id
+    const createdRecords = [];
+    for (const item of records) {
+      const { amount, type, category, date, notes } = item;
+
+      // Defensive validation (schema already validates)
+      validatePositiveNumber(amount, 'amount');
+
+      const result = await createNewRecord({
+        amount,
+        type,
+        category,
+        record_date: date,
+        notes: notes ?? '',
+        created_by: req.user.id,
+      });
+      createdRecords.push(result);
+    }
+
+    if (createdRecords.length === 1) {
+      res.status(201).json({ data: createdRecords[0] });
+      return;
+    }
+
+    res.status(201).json({
+      data: createdRecords,
+      meta: { created: createdRecords.length },
     });
-    
-    res.status(201).json({ data: result });
   } catch (error) {
     next(error);
   }
