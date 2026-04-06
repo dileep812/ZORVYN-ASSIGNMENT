@@ -2,11 +2,17 @@
 
 Base URL: `http://localhost:4000`
 
-Protected routes require:
+Default admin credentials (seed data):
 
-`Authorization: Bearer <token>`
+- `username`: `admin1`
+- `password`: `ChangeMe123!`
 
-or a valid HTTP-only auth cookie set by login.
+Important: change default credentials after first login.
+
+Authentication options for protected endpoints:
+
+- `Authorization: Bearer <token>`
+- HTTP-only auth cookie set by login (`access_token` by default)
 
 ## Public Endpoints
 
@@ -14,21 +20,27 @@ or a valid HTTP-only auth cookie set by login.
 
 `GET /health`
 
-Request:
+Authorization: `Public`
 
-```http
-GET /health
-```
+Rate limit: This endpoint is rate-limited (`60` requests per `1` minute per IP).
 
 Response:
 
 ```json
-{ "status": "ok" }
+{
+  "status": "ok",
+  "environment": "development",
+  "uptimeSeconds": 1234
+}
 ```
 
 ### Login
 
 `POST /api/auth/login`
+
+Authorization: `Public`
+
+Rate limit: This endpoint is rate-limited (`10` attempts per `15` minutes per IP).
 
 Request:
 
@@ -42,6 +54,7 @@ Response:
 {
   "data": {
     "authenticated": true,
+    "token": "<jwt>",
     "user": {
       "id": 1,
       "name": "Admin One",
@@ -54,25 +67,37 @@ Response:
 }
 ```
 
-Note: JWT is set in an HTTP-only cookie (`access_token` by default). It is not returned in the JSON body.
+Note: JWT is both returned in response (`data.token`) and set in an HTTP-only cookie.
 
 Possible errors:
 
-- `400` invalid body
-- `401` invalid credentials
+- `400` invalid request body
+- `401` invalid username/password
+- `429` too many login attempts
 
 ## Protected Endpoints
+
+### Logout
+
+`POST /api/auth/logout`
+
+Authorization: `Any authenticated user (viewer/analyst/admin)`
+
+Notes:
+
+- Works even if account is currently inactive (valid token/cookie required).
+
+Response:
+
+```json
+{ "message": "Logged out successfully" }
+```
 
 ### Current User
 
 `GET /api/me`
 
-Request:
-
-```http
-GET /api/me
-Authorization: Bearer <token>
-```
+Authorization: `Any active authenticated user (viewer/analyst/admin)`
 
 Response:
 
@@ -93,97 +118,39 @@ Response:
 
 `PATCH /api/me/profile`
 
-Allows authenticated users to update their profile. Users can modify:
-- `name` — Display name (2-120 characters)
-- `username` — Username must be unique (3-30 chars, alphanumeric with `-`, `_`, `.`)
-- `newPassword` — New password (8-72 characters). **Requires `oldPassword` for verification.**
-- `oldPassword` — Old/current password (required when changing password for security verification)
-- `isActive` — User's active status with restrictions:
-  - Users can deactivate themselves (set `isActive: false`)
-  - Users cannot reactivate themselves (cannot set `isActive: true` if currently false)
-  - Reactivation requires admin action
+Authorization: `Any active authenticated user (viewer/analyst/admin)`
 
-**Important restrictions:**
-- Role cannot be changed by users (admin-only)
-- Username must be unique across the system
-- Password changes require current password verification
-- All fields are optional; omit to skip updating
+Allowed fields:
 
-Request examples:
+- `name`
+- `username` (must be unique)
+- `newPassword` (requires `oldPassword`)
+- `oldPassword`
+- `isActive`
 
-```json
-{
-  "name": "John Doe Updated"
-}
-```
+Notes:
 
-```json
-{
-  "username": "john.doe"
-}
-```
-
-```json
-{
-  "newPassword": "NewStrongPassword123!",
-  "oldPassword": "OldPassword123!"
-}\n```
-
-```json
-{
-  "isActive": false
-}
-```
-
-Response:
-
-```json
-{
-  "message": "Profile updated successfully",
-  "data": {
-    "id": 1,
-    "name": "John Doe Updated",
-    "email": "admin1@finance.local",
-    "username": "john.doe",
-    "role": "admin",
-    "isActive": false
-  }
-}
-```
+- Users can deactivate themselves (`isActive: false`).
+- Users cannot reactivate themselves (`isActive: true` when inactive is blocked).
 
 Possible errors:
-- `400` invalid fields or format
-- `401` authentication required or incorrect current password
-- `409` username already taken
-- `403` attempting to reactivate account (admin-only)
 
-### Users
+- `400` invalid request body
+- `401` authentication required / wrong old password
+- `403` forbidden status transition
+- `409` username conflict
 
-#### List users
+### List Users
 
 `GET /api/users`
 
-Response:
+Authorization: `Admin only`
 
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "name": "Admin One",
-      "email": "admin1@finance.local",
-      "username": "admin1",
-      "role": "admin",
-      "is_active": true,
-      "created_at": "2026-04-05T10:00:00.000Z"
-    }
-  ]
-}
-```
-
-#### Create user
+### Create User
 
 `POST /api/users`
+
+Authorization: `Admin only`
 
 Request:
 
@@ -198,119 +165,58 @@ Request:
 }
 ```
 
-Response:
-
-```json
-{
-  "data": {
-    "id": 6,
-    "name": "Analyst Three",
-    "email": "analyst3@finance.local",
-    "username": "analyst3",
-    "role": "analyst",
-    "is_active": true,
-    "created_at": "2026-04-05T10:10:00.000Z"
-  }
-}
-```
-
-#### Update user
+### Update User
 
 `PATCH /api/users/:id`
 
-Admin-only endpoint. Allows updating user attributes: name, email, username, password, role, and isActive.
+Authorization: `Admin only`
 
-**Email uniqueness:** New email must not already exist in the system.
+Allowed fields:
 
-Request examples:
+- `name`
+- `email` (must be unique)
+- `username` (must be unique)
+- `role`
+- `isActive`
 
-```json
-{ "isActive": false }
-```
+Not allowed:
 
-```json
-{ "email": "newemail@finance.local" }
-```
-
-```json
-{ "password": "NewStrongPass123!" }
-```
-
-```json
-{ "name": "Updated Name", "role": "analyst" }
-```
-
-Response:
-
-```json
-{
-  "data": {
-    "id": 6,
-    "name": "Analyst Three",
-    "email": "analyst3@finance.local",
-    "username": "analyst3",
-    "role": "analyst",
-    "is_active": true,
-    "updated_at": "2026-04-05T10:15:00.000Z"
-  }
-}
-```
+- `password` cannot be changed by admin in this endpoint.
 
 Possible errors:
-- `400` invalid fields or format
-- `403` insufficient permissions (admin-only)
+
+- `400` invalid request body
 - `404` user not found
-- `409` email already in use or admin-only restrictions violated
+- `409` username/email conflict or admin-role restriction
 
-### Records
-
-#### List records
+### List Records
 
 `GET /api/records?type=expense&category=food&startDate=2026-01-01&endDate=2026-12-31&page=1&limit=20`
 
-Access: **analyst** and **admin** only.
+Authorization: `Analyst or Admin`
 
 Supported filters:
 
-- `type` - `income` or `expense`
-- `category` - Category name
-- `startDate` - Start of date range (`YYYY-MM-DD`)
-- `endDate` - End of date range (`YYYY-MM-DD`)
-- `page` - Page number for pagination
-- `limit` - Page size for pagination
+- `type`: `income` | `expense`
+- `category`: string
+- `startDate`: `YYYY-MM-DD`
+- `endDate`: `YYYY-MM-DD`
+- `page`: integer >= 1
+- `limit`: integer 1..100
 
-You can combine any subset of filters. If `startDate` and `endDate` are both provided, they must be in chronological order.
-
-Response:
-
-```json
-{
-  "data": [
-    {
-      "id": 10,
-      "amount": "250.00",
-      "type": "expense",
-      "category": "food",
-      "record_date": "2026-04-01",
-      "notes": "team lunch",
-      "created_by": 1,
-      "created_at": "2026-04-01T12:00:00.000Z",
-      "updated_at": "2026-04-01T12:00:00.000Z"
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 1
-  }
-}
-```
-
-#### Create record
+### Create Record(s)
 
 `POST /api/records`
 
-Request:
+Authorization: `Admin only`
+
+Behavior:
+
+- If request body is a single record object, one record is created.
+- If request body is an array of record objects, multiple records are created in one request.
+- Array size limit: up to `100` records per request.
+
+Single record request:
 
 ```json
 {
@@ -322,7 +228,28 @@ Request:
 }
 ```
 
-Response:
+Bulk request:
+
+```json
+[
+  {
+    "amount": 1000,
+    "type": "income",
+    "category": "salary",
+    "date": "2026-04-01",
+    "notes": "monthly salary"
+  },
+  {
+    "amount": 250,
+    "type": "expense",
+    "category": "food",
+    "date": "2026-04-02",
+    "notes": "team lunch"
+  }
+]
+```
+
+Single record response:
 
 ```json
 {
@@ -340,15 +267,44 @@ Response:
 }
 ```
 
-#### Update record
-
-`PATCH /api/records/:id`
-
-Request:
+Bulk response:
 
 ```json
 {
-  "amount": 1100
+  "data": [
+    {
+      "id": 20,
+      "amount": "1000.00",
+      "type": "income",
+      "category": "salary",
+      "record_date": "2026-04-01",
+      "notes": "monthly salary",
+      "created_by": 1,
+      "created_at": "2026-04-01T12:00:00.000Z",
+      "updated_at": "2026-04-01T12:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "created": 1
+  }
+}
+```
+
+### Update Record
+
+`PATCH /api/records/:id`
+
+Authorization: `Admin only`
+
+Request (any subset of fields):
+
+```json
+{
+  "amount": 1100,
+  "type": "income",
+  "category": "salary",
+  "date": "2026-04-01",
+  "notes": "updated note"
 }
 ```
 
@@ -362,7 +318,7 @@ Response:
     "type": "income",
     "category": "salary",
     "record_date": "2026-04-01",
-    "notes": "monthly salary",
+    "notes": "updated note",
     "created_by": 1,
     "created_at": "2026-04-01T12:00:00.000Z",
     "updated_at": "2026-04-01T12:05:00.000Z"
@@ -372,22 +328,72 @@ Response:
 
 Possible errors:
 
-- `400` invalid record id/body
+- `400` invalid record id or request body
+- `401` missing/invalid authentication
+- `403` insufficient permissions
 - `404` record not found
 
-#### Delete record
+### Delete Record
 
 `DELETE /api/records/:id`
+
+Authorization: `Admin only`
+
+Purpose:
+
+- Soft deletes a financial record by setting `is_deleted = true`.
+- The record is hidden from listing endpoints after deletion.
+
+Path parameter:
+
+- `id` (required): positive integer record ID
+
+Example request:
+
+```http
+DELETE /api/records/20
+Authorization: Bearer <token>
+```
 
 Response:
 
 - `204 No Content`
 
-### Dashboard
+Response body:
+
+- No response body is returned on success.
+
+Possible errors:
+
+- `400` invalid record id
+- `401` missing/invalid authentication
+- `403` insufficient permissions
+- `404` record not found
+
+### Dashboard Summary
 
 `GET /api/dashboard?startDate=2026-01-01&endDate=2026-12-31`
 
-Response:
+Authorization: `Viewer, Analyst, or Admin`
+
+Purpose:
+
+- Provides a high-level business snapshot for general users.
+- Suitable for quick dashboard cards and overview charts.
+
+Query parameters:
+
+- `startDate` (optional): `YYYY-MM-DD`
+- `endDate` (optional): `YYYY-MM-DD`
+
+Response includes:
+
+- `summary`: totals such as income, expenses, net balance
+- `categoryTotals`: grouped totals by category
+- `recentActivity`: latest record activity list
+- `monthlyTrend`: month-wise income/expense trend
+
+Example response:
 
 ```json
 {
@@ -409,11 +415,38 @@ Response:
 }
 ```
 
-#### Dashboard insights (analyst/admin)
+Possible errors:
+
+- `400` invalid query parameters
+- `401` missing/invalid authentication
+- `403` insufficient permissions
+
+### Dashboard Insights
 
 `GET /api/dashboard/insights?startDate=2026-01-01&endDate=2026-12-31&interval=month`
 
-Response:
+Authorization: `Analyst or Admin`
+
+Purpose:
+
+- Provides deeper analytical metrics for decision-making.
+- Suitable for analyst/admin reporting and performance analysis.
+
+Query parameters:
+
+- `startDate` (optional): `YYYY-MM-DD`
+- `endDate` (optional): `YYYY-MM-DD`
+- `interval` (optional): `week` or `month` (default: `week`)
+
+Response includes:
+
+- `filters`: effective filters used by the API
+- `metrics`: aggregate KPIs (totals, averages, savings rate, ratios)
+- `trend`: interval-based trend with income/expense/net values
+- `topExpenseCategories`: top spending categories
+- `topIncomeCategories`: top income categories
+
+Example response:
 
 ```json
 {
@@ -455,8 +488,13 @@ Response:
 Possible errors:
 
 - `400` invalid query parameters
-- `401` missing/invalid token
-- `403` role is not analyst/admin
+- `401` missing/invalid authentication
+- `403` insufficient permissions
+
+Difference between Summary and Insights:
+
+- **Dashboard Summary** is a quick overview endpoint for all roles (`viewer`, `analyst`, `admin`).
+- **Dashboard Insights** is a detailed analytics endpoint for advanced users (`analyst`, `admin`) with extra KPIs and interval-based analysis.
 
 ## Common Error Format
 
@@ -465,6 +503,29 @@ Possible errors:
   "message": "Invalid request body",
   "details": [
     { "field": "username", "message": "Username is required and must be valid" }
+  ]
+}
+```
+
+## Error Response Types
+
+### 400 / 401 / 403 / 404 / 409 / 429 / 500
+
+Standard format:
+
+```json
+{
+  "message": "Error message"
+}
+```
+
+Validation format (when field-level validation fails):
+
+```json
+{
+  "message": "Invalid request body",
+  "details": [
+    { "field": "fieldName", "message": "Validation message" }
   ]
 }
 ```
