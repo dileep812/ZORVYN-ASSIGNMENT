@@ -181,7 +181,7 @@ curl http://localhost:4000/api/dashboard \
 
 ## Seeded Test Accounts
 
-Default password: `ChangeMe123!`
+Current unchanged password for `admin1`, `analyst1`, `analyst2`, and `viewer1`: `ChangeMe123!`
 
 | Username | Role | Email | Password |
 |----------|------|-------|----------|

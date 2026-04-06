@@ -2,10 +2,13 @@
 
 Base URL: `http://localhost:4000`
 
-Default admin credentials (seed data):
+Default seeded credentials:
 
-- `username`: `admin1`
-- `password`: `ChangeMe123!`
+| Username | Password |
+|----------|----------|
+| admin1 | ChangeMe123! |
+| analyst1 | ChangeMe123! |
+| viewer1 | ChangeMe123! |
 
 Important: change default credentials after first login.
 

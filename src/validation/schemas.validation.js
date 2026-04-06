@@ -179,7 +179,7 @@ export function userUpdateSchema(input) {
   return issues.length ? failure(issues) : success(data);
 }
 
-export function recordCreateSchema(input) {
+function validateRecordCreateItem(input, pathPrefix = '') {
   const issues = [];
   const data = {};
 
@@ -262,8 +262,6 @@ export function recordCreateManySchema(input) {
   }
 
   return success({ records: [single.data] });
-
-  return issues.length ? failure(issues) : success(data);
 }
 
 export function recordUpdateSchema(input) {
